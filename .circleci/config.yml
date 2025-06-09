@@ -1,0 +1,54 @@
+version: 2.1
+jobs:
+  build:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - run:
+          name: Install Dependencies
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y curl jq zip
+      - run:
+          name: Package Extension
+          command: zip -r tab-counter.zip . -x '*.git*' -x '*.circleci*' -x '*README.md' -x '*test/*'
+      - run:
+          name: Upload & Publish to Chrome Web Store
+          command: |
+            ACCESS_TOKEN=$(curl -s -X POST https://accounts.google.com/o/oauth2/token \
+              -d client_id=${CLIENT_ID} \
+              -d client_secret=${CLIENT_SECRET} \
+              -d refresh_token=${REFRESH_TOKEN} \
+              -d grant_type=refresh_token \
+              -d redirect_uri=urn:ietf:wg:oauth:2.0:oob | jq -r .access_token)
+
+            UPLOAD_RESPONSE=$(curl -s -w "%{http_code}" -o upload_output.json \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+              -H "x-goog-api-version: 2" \
+              -X PUT -T tab-counter.zip \
+              "https://www.googleapis.com/upload/chromewebstore/v1.1/items/${APP_ID}")
+
+            if [[ "$UPLOAD_RESPONSE" -ne 200 ]]; then
+              echo "❌ Upload failed:"
+              cat upload_output.json
+              exit 1
+            fi
+
+            PUBLISH_RESPONSE=$(curl -s -w "%{http_code}" -o publish_output.json \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+              -H "x-goog-api-version: 2" \
+              -H "Content-Length: 0" \
+              -X POST \
+              "https://www.googleapis.com/chromewebstore/v1.1/items/${APP_ID}/publish")
+
+            if [[ "$PUBLISH_RESPONSE" -ne 200 ]]; then
+              echo "❌ Publish failed:"
+              cat publish_output.json
+              exit 1
+            fi
+
+workflows:
+  deploy:
+    jobs:
+      - build
