@@ -40,11 +40,13 @@ import './popup.css';
 
     if (CheckHTMLForCaptcha(selector.outerHTML)) {
       return selector.outerHTML;
+    } else {
+      return 'Not a captcha';
     }
   }
 
   function CheckHTMLForCaptcha(text) {
-    if (text.indexOf('captcha-form') == -1) {
+    if (String(text).indexOf('captcha-form') == -1) {
       return false;
     }
     return true;
